@@ -168,6 +168,8 @@ int main
                 {
                     // 根据窗口信息创建Surface
                     vkCreateWin32SurfaceKHR(instance, &surfaceCreateInfo, nullptr, &surface);
+                    
+                    // 获取支持present的queue
                     // 设置colorFormat和ColorSpace
                 }
             }
@@ -192,8 +194,27 @@ int main
             }
             
             // Create one command buffer for each swap chain image and reuse for rendering
+            // 为swapChain中的每一个image创建一个command buffer
             void VulkanExampleBase::createCommandBuffers();
+            
+            // 为cpu与gpu同步创建fence
+            void VulkanExampleBase::createSynchronizationPrimitives();
+            
+            void VulkanExampleBase::setupDepthStencil();
+            {
+                // 创建depthStencil的image、mem、以及ImageView
+            }
+            //创建RenderPass
+            void VulkanExampleBase::setupRenderPass();
+            
+            //创建PipelineCache
+            void VulkanExampleBase::createPipelineCache();
+            
+            // 为每个swapChain的Image创建一个FrameBuffer
+            void VulkanExampleBase::setupFrameBuffer()；
         }
+        
+        
     }
 }
 ```
