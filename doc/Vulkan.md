@@ -1,5 +1,9 @@
 ## 框架详解
 
+[TOC]
+
+
+
 #### 类图
 
 ```mermaid
@@ -194,3 +198,171 @@ int main
 }
 ```
 
+## Vulkan概念
+
+### VkInstance
+
+初始化Vulkan library， 为驱动程序提供应用层信息
+
+#### 创建
+
+```cpp
+VkApplicationInfo; // 提供应用信息
+VkInstanceCreateInfo; // 提供扩展和校验层信息
+vkCreateInstance(&createInfo, nullptr, &instance);
+```
+
+#### 销毁
+
+```cpp
+vkDestroyInstance(instance, nullptr);
+```
+
+### VkPhysicalDevice
+
+显卡的抽象
+
+#### 获取方式
+
+```c++
+uint32_t deviceCount = 0;
+vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+std::vector<VkPhysicalDevice> devices(deviceCount);
+vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+```
+
+#### 设备评估
+
+```c++
+// name， type, vulkan版本
+VkPhysicalDeviceProperties deviceProperties;
+vkGetPhysicalDeviceProperties(device, &deviceProperties);
+//支持的特性，如纹理压缩，64位浮点数和多视图渲染， geometryshader
+VkPhysicalDeviceFeatures deviceFeatures;
+vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+```
+
+#### 选择设备
+
+选择支持特性最多的那个设备
+
+### Queue Family队列族
+
+支持不同的command的队列, VkQueueFamilyProperties结构体包含具体信息
+
+#### 获取显卡支持的队列族
+
+```c++
+VkQueueFamilyProperties;//支持的command类型，以及支持的队列数
+    
+uint32_t queueFamilyCount = 0;
+vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+```
+
+### VkDevice
+
+用于与物理设备交互的逻辑设备。
+
+#### 创建
+
+```c++
+VkDeviceQueueCreateInfo; //包括队列类型，队列数量，以及队列的优先级
+VkDeviceCreateInfo; // 需要指定创建的队列info以及使用的物理设备的特性，扩展和校验层
+//需要physicalDevice
+vkCreateDevice(physicalDevice, &createInfo, nullptr, &device)
+```
+
+#### 销毁
+
+```cpp
+vkDestroyDevice(device, nullptr);
+```
+
+### VkQueue
+
+存储command的队列，创建VkDevice时创建
+
+#### 检索/获取
+
+```c++
+vkGetDeviceQueue(device, indices.graphicsFamily, 0, &graphicsQueue);
+```
+
+### Vulkan Window Surface/ VkSurfaceKHR
+
+用以呈现渲染图像使用, surface是Vulkan与窗体系统的连接桥梁
+
+#### 创建
+
+需要在`instance`创建之后立即创建窗体`surface`，它会影响物理设备的选择
+
+```c++
+
+VkWin32SurfaceCreateInfoKHR; // 包含窗口和进行的句柄
+
+VkSurfaceKHR surface;
+
+auto CreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR) vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");
+CreateWin32SurfaceKHR(instance, &createInfo, nullptr, &surface) 
+```
+
+直接使用glfw创建
+
+```cpp
+glfwCreateWindowSurface(instance, window, nullptr, &surface)
+```
+
+#### 销毁
+
+```cpp
+vkDestroySurfaceKHR(instance, surface, nullptr);
+```
+
+
+
+### VkSwapchainKHR 
+
+从屏幕的角度观察，交换链本质上是一个图像队列。一个图像在后台渲染，一个图形在前台显示。
+
+#### 创建
+
+1. 检查物理设备的扩展是否支持交换链
+2. 查询交换链支持详情
+   - surface的功能属性（最大最小数量，宽高）
+   - 格式和颜色空间
+   - presentMode
+     - 三重缓冲，队列模式
+
+```c++
+// surface
+// image count
+// color format, Color space
+// 分辨率
+// 不同队列族之间的交换链图形如何处理
+VkSwapchainCreateInfoKHR; 
+
+VkSwapchainKHR swapChain;
+vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) ;
+```
+
+### VkImage和VkImageView
+
+使用任何的**VkImage**，包括在交换链或者渲染管线中的，我们都需要创建**VkImageView**对象。从字面上理解它就是一个针对图像的视图或容器，通过它具体的渲染管线才能够读写渲染数据，换句话说`VkImage`不能与渲染管线进行交互。
+
+#### 创建
+
+```c++
+// vkImage的指针
+// 图像的使用目标
+// 
+VkImageViewCreateInfo;
+vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]);
+```
+
+#### 销毁
+
+```cpp
+ vkDestroyImageView(device, swapChainImageViews[i], nullptr);
+```
