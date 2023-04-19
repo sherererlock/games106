@@ -486,3 +486,206 @@ vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 vkCmdEndRenderPass(commandBuffers[i]);
 vkEndCommandBuffer(commandBuffers[i]);
 ```
+
+### vulkan渲染和显示
+
+Fence主要用于应用程序自身与渲染操作进行同步，而Semaphore用于在命令队列内或者跨命令队列同步操作
+
+#### Semaphore
+
+创建
+
+```cpp
+VkSemaphore imageAvailableSemaphore; // 准备渲染
+VkSemaphore renderFinishedSemaphore; // 准备呈现
+VkSemaphoreCreateInfo;
+vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore);
+```
+
+销毁
+
+```cpp
+vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
+```
+
+#### 从交换链获取图形
+
+```cpp
+uint32_t imageIndex;
+vkAcquireNextImageKHR(device, swapChain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+//imageIndex用来获取正确的命令缓冲区
+```
+
+#### 提交命令缓冲区
+
+```cpp
+VkSubmitInfo submitInfo;
+VkSubmitInfo submitInfo = {};
+submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
+VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+submitInfo.waitSemaphoreCount = 1;
+submitInfo.pWaitSemaphores = waitSemaphores; //等待的信号量
+submitInfo.pWaitDstStageMask = waitStages;
+
+VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+submitInfo.signalSemaphoreCount = 1;
+submitInfo.pSignalSemaphores = signalSemaphores; // 给这些信号量发出信号
+
+vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+```
+
+#### Subpass 依赖性
+
+#### 呈现
+
+```cpp
+VkPresentInfoKHR presentInfo = {};
+presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+presentInfo.waitSemaphoreCount = 1;
+presentInfo.pWaitSemaphores = signalSemaphores;
+
+VkSwapchainKHR swapChains[] = {swapChain};
+presentInfo.swapchainCount = 1;
+presentInfo.pSwapchains = swapChains;
+presentInfo.pImageIndices = &imageIndex;
+
+presentInfo.pResults = nullptr;
+
+vkQueuePresentKHR(presentQueue, &presentInfo);
+
+vkDeviceWaitIdle(device);
+```
+
+### Vulkan 重构交换链
+
+窗口大小变化，最大化，最小化时。
+
+#### 重新创建交换链
+
+清理并重新创建以下对象
+
+- ImageView
+- RenderPass
+- Viewport和Scissor
+- framebuffer
+- commandbuffer
+- swapChain
+
+### Vulkan 顶点输入
+
+#### 顶点着色器
+
+用location来标识cpu到gpu的变量
+
+#### 顶点数据
+
+绑定描述、属性描述
+
+```cpp
+struct Vertex {
+    glm::vec2 pos;
+    glm::vec3 color;
+    static VkVertexInputBindingDescription getBindingDescription() {
+        VkVertexInputBindingDescription bindingDescription = {};
+        bindingDescription.binding = 0;// 数组中对应的绑定索引
+        bindingDescription.stride = sizeof(Vertex);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        return bindingDescription;
+    } 
+    
+   static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+    	std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {};
+        attributeDescriptions[0].binding = 0; // binding参数告诉了Vulkan每个顶点数据的来源
+        attributeDescriptions[0].location = 0;//location参数引用了vertex shader作为输入的location指令
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(Vertex, pos);
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(Vertex, color);
+       
+    return attributeDescriptions;
+} 
+};
+const std::vector<Vertex> vertices = {
+    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+};
+```
+
+#### 管线顶点输入
+
+```cpp
+auto bindingDescription = Vertex::getBindingDescription();
+auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
+vertexInputInfo.vertexBindingDescriptionCount = 1;
+vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+```
+
+### Vulkan 创建顶点缓冲区
+
+在`Vulkan`中，缓冲区是内存的一块区域，该区域用于向显卡提供预要读取的任意数据。它们可以用来存储顶点数据，也可以用于其他目的。
+
+#### 创建缓冲区
+
+```cpp
+VkBufferCreateInfo bufferInfo = {};
+bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+bufferInfo.size = sizeof(vertices[0]) * vertices.size();
+
+bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+VkBuffer vertexBuffer;
+vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer);
+
+vkDestroyBuffer(device, vertexBuffer, nullptr);
+```
+
+#### 内存需求
+
+#### 内存分配
+
+```cpp
+VkMemoryAllocateInfo allocInfo = {};
+allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+allocInfo.allocationSize = memRequirements.size;
+allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+VkBuffer vertexBuffer;
+VkDeviceMemory vertexBufferMemory;
+vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory);
+vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+vkFreeMemory(device, vertexBufferMemory, nullptr);
+```
+
+#### 填充顶点缓冲区
+
+```cpp
+void* data;
+vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+
+memcpy(data, vertices.data(), (size_t) bufferInfo.size);
+vkUnmapMemory(device, vertexBufferMemory);
+```
+
+#### 绑定顶点缓冲区
+
+```cpp
+vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+VkBuffer vertexBuffers[] = {vertexBuffer};
+VkDeviceSize offsets[] = {0};
+vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+
+vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+```
+
+### Vulkan 临时缓冲区
