@@ -427,6 +427,8 @@ vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]
 vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
 ```
 
+
+
 ### Vulkan 命令缓冲区
 
 在命令缓冲区对象中记录我们期望的任何操作，例如绘制和内存相关命令。利于多线程优化
