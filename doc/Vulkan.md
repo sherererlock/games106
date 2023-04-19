@@ -387,3 +387,102 @@ vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]);
 ```cpp
  vkDestroyImageView(device, swapChainImageViews[i], nullptr);
 ```
+
+### RenderPass
+
+指定frame buffer帧缓冲附件相关信息，需要指定多少个颜色和深度缓冲会被使用，指定有多少个采样器会被使用，整个渲染操作过程中的相关内容应该如何处理 
+
+附件、子通道
+
+#### 创建
+
+```c++
+VkRenderPass renderPass;
+
+vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass)
+```
+
+#### 销毁
+
+```c++
+vkDestroyRenderPass(device, renderPass, nullptr);
+```
+
+### vulkan帧缓冲区
+
+为在swapChain中所有的Image对象创建frame buffer,以便呈现
+
+#### 创建
+
+```c++
+std::vector<VkFramebuffer> swapChainFramebuffers;
+
+VkFramebufferCreateInfo; // imageview,renderpass, 宽高
+vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]);
+```
+
+#### 销毁
+
+```cpp
+vkDestroyFramebuffer(device, swapChainFramebuffers[i], nullptr);
+```
+
+### Vulkan 命令缓冲区
+
+在命令缓冲区对象中记录我们期望的任何操作，例如绘制和内存相关命令。利于多线程优化
+
+#### 命令池command pool
+
+管理用于存储缓冲区的内存，并从中分配命令缓冲区
+
+#### 创建
+
+```cpp
+VkCommandPoolCreateInfo; // 队列族， flag
+vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool)
+```
+
+#### 销毁
+
+```cpp
+vkDestroyCommandPool(device, commandPool, nullptr);
+```
+
+#### 命令缓冲区
+
+```cpp
+//为交换链中的每一个image创建一个command buffer
+std::vector<VkCommandBuffer> commandBuffers;
+VkCommandBufferAllocateInfo;//commandbuffer数量和cmdpool
+vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) ;
+```
+
+#### 开始记录
+
+```cpp
+VkCommandBufferBeginInfo;
+vkBeginCommandBuffer(commandBuffers[i], &beginInfo);
+```
+
+启动Renderpass
+
+```cpp
+VkRenderPassBeginInfo;
+vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+```
+
+基本绘图命令
+
+```cpp
+// 绑定图形管线
+vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+```
+
+结束渲染
+
+```cpp
+vkCmdEndRenderPass(commandBuffers[i]);
+vkEndCommandBuffer(commandBuffers[i]);
+```
